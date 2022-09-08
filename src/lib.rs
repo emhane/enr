@@ -305,6 +305,38 @@ impl<K: EnrKey> Enr<K> {
         None
     }
 
+    /// Returns the IPv4 address of the ENR record in the 'nat' field if it is defined.
+    #[must_use]
+    pub fn ip4_nat(&self) -> Option<Ipv4Addr> {
+        if let Some(ip_bytes) = self.get("nat") {
+            return match ip_bytes.len() {
+                4 => {
+                    let mut ip = [0_u8; 4];
+                    ip.copy_from_slice(ip_bytes);
+                    Some(Ipv4Addr::from(ip))
+                }
+                _ => None,
+            };
+        }
+        None
+    }
+
+    /// Returns the IPv6 address of the ENR record in the 'nat6' field if it is defined.
+    #[must_use]
+    pub fn ip6_nat(&self) -> Option<Ipv6Addr> {
+        if let Some(ip_bytes) = self.get("nat6") {
+            return match ip_bytes.len() {
+                16 => {
+                    let mut ip = [0_u8; 16];
+                    ip.copy_from_slice(ip_bytes);
+                    Some(Ipv6Addr::from(ip))
+                }
+                _ => None,
+            };
+        }
+        None
+    }
+
     /// The `id` of ENR record if it is defined.
     #[must_use]
     pub fn id(&self) -> Option<String> {
@@ -380,6 +412,28 @@ impl<K: EnrKey> Enr<K> {
     /// Provides a socket (based on the UDP port), if the IPv4 and UDP fields are specified.
     #[must_use]
     pub fn udp6_socket(&self) -> Option<SocketAddrV6> {
+        if let Some(ip6) = self.ip6() {
+            if let Some(udp6) = self.udp6() {
+                return Some(SocketAddrV6::new(ip6, udp6, 0, 0));
+            }
+        }
+        None
+    }
+
+    /// Provides a socket (based on the UDP port), if the IPv4 and UDP fields are specified.
+    #[must_use]
+    pub fn udp4_socket_nat(&self) -> Option<SocketAddrV4> {
+        if let Some(ip) = self.ip4_nat() {
+            if let Some(udp) = self.udp4() {
+                return Some(SocketAddrV4::new(ip, udp));
+            }
+        }
+        None
+    }
+
+    /// Provides a socket (based on the UDP port), if the IPv4 and UDP fields are specified.
+    #[must_use]
+    pub fn udp6_socket_nat(&self) -> Option<SocketAddrV6> {
         if let Some(ip6) = self.ip6() {
             if let Some(udp6) = self.udp6() {
                 return Some(SocketAddrV6::new(ip6, udp6, 0, 0));
@@ -554,6 +608,39 @@ impl<K: EnrKey> Enr<K> {
             }
             IpAddr::V6(addr) => {
                 let prev_value = self.insert("ip6", &addr.octets(), key)?;
+                if let Some(bytes) = prev_value {
+                    if bytes.len() == 16 {
+                        let mut v = [0_u8; 16];
+                        v.copy_from_slice(&bytes);
+                        return Ok(Some(IpAddr::V6(Ipv6Addr::from(v))));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Sets the `nat`/`nat6` field of the ENR. Returns any pre-existing IP address in the record.
+    /// WARNING! This removes the 'ip'/'ip6' field if it exists.
+    pub fn set_nat(&mut self, ip: IpAddr, key: &K) -> Result<Option<IpAddr>, EnrError> {
+        match ip {
+            IpAddr::V4(addr) => {
+                self.content.remove(b"ip".as_ref());
+
+                let prev_value = self.insert("nat", &addr.octets(), key)?;
+                if let Some(bytes) = prev_value {
+                    if bytes.len() == 4 {
+                        let mut v = [0_u8; 4];
+                        v.copy_from_slice(&bytes);
+                        return Ok(Some(IpAddr::V4(Ipv4Addr::from(v))));
+                    }
+                }
+            }
+            IpAddr::V6(addr) => {
+                self.content.remove(b"ip6".as_ref());
+
+                let prev_value = self.insert("nat6", &addr.octets(), key)?;
                 if let Some(bytes) = prev_value {
                     if bytes.len() == 16 {
                         let mut v = [0_u8; 16];
