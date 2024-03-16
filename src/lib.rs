@@ -219,7 +219,7 @@ const MAX_ENR_SIZE: usize = 300;
 /// The ENR, allowing for arbitrary signing algorithms.
 ///
 /// This struct will always have a valid signature, known public key type, sequence number and `NodeId`. All other parameters are variable/optional.
-pub struct Enr<K: EnrKey> {
+pub struct Enr<K> {
     /// ENR sequence number.
     seq: u64,
 
